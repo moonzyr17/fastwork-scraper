@@ -41,17 +41,19 @@ def parse_jobs(items: list) -> list:
     """Normalize job listing fields."""
     jobs = []
     for job in items:
-        category = job.get("category", {})
+        # Category is under 'tag.name', job type is under 'type'
+        tag = job.get("tag", {})
+        category = tag.get("name", "") if isinstance(tag, dict) else str(tag or "")
         jobs.append({
             "id": job.get("id", ""),
             "title": job.get("title", ""),
-            "category": category.get("name", "") if isinstance(category, dict) else str(category),
-            "job_type": job.get("job_type", ""),
+            "category": category,
+            "job_type": job.get("type", ""),
             "budget": job.get("budget", ""),
             "currency": "IDR",
             "description": job.get("description", ""),
             "posted_at": job.get("inserted_at", ""),
-            "deadline": job.get("deadline", ""),
+            "deadline": job.get("deadline_at", ""),
             "url": f"https://jobboard.fastwork.id/jobs/{job.get('id', '')}",
         })
     return jobs
