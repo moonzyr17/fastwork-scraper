@@ -1,14 +1,61 @@
 # Fastwork Jobboard Scraper
 
-Scraper untuk mengambil semua listing pekerjaan dari [jobboard.fastwork.id](https://jobboard.fastwork.id) dan mengekspornya ke format CSV dan JSON.
+Scraper + web dashboard untuk mengambil dan memvisualisasikan semua listing pekerjaan dari [jobboard.fastwork.id](https://jobboard.fastwork.id).
+
+![Python](https://img.shields.io/badge/Python-3.11-blue) ![Flask](https://img.shields.io/badge/Flask-3.1-green) ![License](https://img.shields.io/badge/License-MIT-yellow)
 
 ## Fitur
 
 - Scrape semua halaman job listing secara otomatis
+- Web dashboard dengan statistik dan grafik interaktif
+- Filter dan pencarian real-time
 - Export ke **CSV** dan **JSON**
-- Menampilkan progress scraping secara real-time
+- Tombol scrape on-demand dari dashboard
 - Delay antar request untuk menghindari rate limiting
-- Penanganan error dan retry otomatis
+
+## Screenshot
+
+Dashboard menampilkan:
+- Total job, kategori, rata-rata budget, budget tertinggi
+- Bar chart top kategori
+- Doughnut chart tipe pekerjaan
+- Tabel lengkap dengan search & filter
+
+## Instalasi
+
+```bash
+git clone https://github.com/moonzyr17/fastwork-scraper.git
+cd fastwork-scraper
+
+# Buat virtual environment
+python3 -m venv .venv
+source .venv/bin/activate  # Linux/Mac
+# atau .venv\Scripts\activate  # Windows
+
+pip install -r requirements.txt
+```
+
+## Penggunaan
+
+### Scraper saja (CLI)
+
+```bash
+python3 scraper.py
+```
+
+Output tersimpan di `output/fastwork_jobs_YYYYMMDD_HHMMSS.json` dan `.csv`
+
+### Web Dashboard
+
+```bash
+python3 app.py
+```
+
+Buka browser ke `http://localhost:5000`
+
+- Klik **Scrape Sekarang** untuk mengambil data terbaru
+- Gunakan kolom pencarian untuk filter job
+- Filter berdasarkan tipe pekerjaan (Freelance, Full-time, dll)
 
 ## Data yang Diambil
 
@@ -24,66 +71,19 @@ Scraper untuk mengambil semua listing pekerjaan dari [jobboard.fastwork.id](http
 | `deadline` | Batas waktu pengiriman |
 | `url` | Link langsung ke job listing |
 
-## Instalasi
+## API Endpoints
 
-```bash
-git clone https://github.com/moonzyr17/fastwork-scraper.git
-cd fastwork-scraper
-pip install requests
-```
-
-## Penggunaan
-
-```bash
-python3 scraper.py
-```
-
-Output akan tersimpan di folder `output/` dengan format nama:
-```
-output/fastwork_jobs_YYYYMMDD_HHMMSS.json
-output/fastwork_jobs_YYYYMMDD_HHMMSS.csv
-```
-
-## Contoh Output
-
-**JSON:**
-```json
-{
-  "scraped_at": "2026-05-16T17:40:52",
-  "total": 275,
-  "jobs": [
-    {
-      "id": "abc123",
-      "title": "Saya mencari freelance desain logo",
-      "category": "Desain Grafis",
-      "job_type": "Freelance",
-      "budget": "500000",
-      "currency": "IDR",
-      "description": "...",
-      "posted_at": "2026-05-16T10:00:00",
-      "deadline": "2026-05-20",
-      "url": "https://jobboard.fastwork.id/jobs/abc123"
-    }
-  ]
-}
-```
-
-**CSV:**
-```
-id,title,category,job_type,budget,currency,description,posted_at,deadline,url
-abc123,Saya mencari freelance desain logo,Desain Grafis,Freelance,500000,IDR,...
-```
+| Endpoint | Method | Deskripsi |
+|---|---|---|
+| `/` | GET | Dashboard utama |
+| `/api/jobs` | GET | Semua job dalam format JSON |
+| `/api/scrape` | POST | Trigger scrape baru |
 
 ## Requirements
 
 - Python 3.7+
-- `requests`
-
-## Catatan
-
-- Scraper menggunakan delay 1 detik antar halaman untuk menghormati server
-- Data yang diambil bersifat publik dan tersedia di halaman jobboard
-- Gunakan secara bertanggung jawab
+- Flask
+- requests
 
 ## Lisensi
 

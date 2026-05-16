@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fastwork Jobboard Scraper</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background: #0f172a; color: #e2e8f0; }
+    .card { background: #1e293b; border: 1px solid #334155; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+    .badge-freelance { background: #0ea5e920; color: #38bdf8; }
+    .badge-fulltime  { background: #22c55e20; color: #4ade80; }
+    .badge-parttime  { background: #f59e0b20; color: #fbbf24; }
+    .badge-kontrak   { background: #a855f720; color: #c084fc; }
+    .badge-other     { background: #64748b20; color: #94a3b8; }
+    .table-row:hover { background: #263348; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #1e293b; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+  </style>
+</head>
+<body class="min-h-screen font-sans">
+
+  <!-- Header -->
+  <header class="border-b border-slate-700 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-sky-500 flex items-center justify-center text-white font-bold text-sm">FW</div>
+      <div>
+        <h1 class="text-lg font-bold text-white">Fastwork Scraper</h1>
+        <p class="text-xs text-slate-400">jobboard.fastwork.id</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      {% if scraped_at %}
+      <span class="text-xs text-slate-400">Update terakhir: <span class="text-slate-300">{{ scraped_at[:16].replace("T", " ") }}</span></span>
+      {% endif %}
+      <button id="scrapeBtn" onclick="triggerScrape()"
+        class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-sm font-medium rounded-lg transition flex items-center gap-2">
+        <svg id="scrapeIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        <span id="scrapeText">Scrape Sekarang</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="px-6 py-6 max-w-screen-xl mx-auto">
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="card rounded-xl p-4">
+        <p class="text-xs text-slate-400 mb-1">Total Job</p>
+        <p class="text-3xl font-bold text-white">{{ total }}</p>
+      </div>
+      <div class="card rounded-xl p-4">
+        <p class="text-xs text-slate-400 mb-1">Kategori</p>
+        <p class="text-3xl font-bold text-white">{{ top_categories|length }}</p>
+      </div>
+      <div class="card rounded-xl p-4">
+        <p class="text-xs text-slate-400 mb-1">Rata-rata Budget</p>
+        <p class="text-3xl font-bold text-white">{{ "{:,.0f}".format(avg_budget) }}</p>
+        <p class="text-xs text-slate-500">IDR</p>
+      </div>
+      <div class="card rounded-xl p-4">
+        <p class="text-xs text-slate-400 mb-1">Budget Tertinggi</p>
+        <p class="text-3xl font-bold text-white">{{ "{:,.0f}".format(max_budget) }}</p>
+        <p class="text-xs text-slate-500">IDR</p>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="card rounded-xl p-4">
+        <h2 class="text-sm font-semibold text-slate-300 mb-4">Top Kategori</h2>
+        <canvas id="categoryChart" height="200"></canvas>
+      </div>
+      <div class="card rounded-xl p-4">
+        <h2 class="text-sm font-semibold text-slate-300 mb-4">Tipe Pekerjaan</h2>
+        <canvas id="typeChart" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="mb-4 flex gap-3">
+      <input id="searchInput" onkeyup="filterTable()" type="text" placeholder="Cari judul, kategori, tipe..."
+        class="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500" />
+      <select id="typeFilter" onchange="filterTable()"
+        class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500">
+        <option value="">Semua Tipe</option>
+        {% for jt in job_types %}
+        <option value="{{ jt }}">{{ jt }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Table -->
+    <div class="card rounded-xl overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-slate-700 text-xs text-slate-400 uppercase tracking-wider">
+              <th class="text-left px-4 py-3">Judul</th>
+              <th class="text-left px-4 py-3">Kategori</th>
+              <th class="text-left px-4 py-3">Tipe</th>
+              <th class="text-right px-4 py-3">Budget (IDR)</th>
+              <th class="text-left px-4 py-3">Diposting</th>
+              <th class="text-left px-4 py-3">Deadline</th>
+              <th class="text-center px-4 py-3">Link</th>
+            </tr>
+          </thead>
+          <tbody id="jobTable">
+            {% for job in jobs %}
+            <tr class="table-row border-b border-slate-700/50 transition"
+                data-title="{{ job.title|lower }}"
+                data-category="{{ job.category|lower }}"
+                data-type="{{ job.job_type|lower }}">
+              <td class="px-4 py-3 max-w-xs">
+                <span class="text-slate-200 font-medium line-clamp-2">{{ job.title }}</span>
+              </td>
+              <td class="px-4 py-3 text-slate-400">{{ job.category or "-" }}</td>
+              <td class="px-4 py-3">
+                {% set jt = job.job_type|lower %}
+                {% if "freelance" in jt %}
+                  <span class="badge badge-freelance">{{ job.job_type }}</span>
+                {% elif "full" in jt %}
+                  <span class="badge badge-fulltime">{{ job.job_type }}</span>
+                {% elif "part" in jt %}
+                  <span class="badge badge-parttime">{{ job.job_type }}</span>
+                {% elif "kontrak" in jt %}
+                  <span class="badge badge-kontrak">{{ job.job_type }}</span>
+                {% else %}
+                  <span class="badge badge-other">{{ job.job_type or "-" }}</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 text-right text-slate-300 font-mono">
+                {% if job.budget %}{{ "{:,.0f}".format(job.budget|int) }}{% else %}-{% endif %}
+              </td>
+              <td class="px-4 py-3 text-slate-400 text-xs">{{ job.posted_at[:16].replace("T", " ") if job.posted_at else "-" }}</td>
+              <td class="px-4 py-3 text-slate-400 text-xs">{{ job.deadline[:10] if job.deadline else "-" }}</td>
+              <td class="px-4 py-3 text-center">
+                <a href="{{ job.url }}" target="_blank"
+                  class="text-sky-400 hover:text-sky-300 transition">
+                  <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                  </svg>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="px-4 py-3 border-t border-slate-700 text-xs text-slate-500">
+        Menampilkan <span id="visibleCount">{{ total }}</span> dari {{ total }} job
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-6 right-6 hidden px-4 py-3 rounded-lg text-sm font-medium shadow-lg transition-all"></div>
+
+  <script>
+    // Charts
+    const catLabels = {{ top_categories | map(attribute=0) | list | tojson }};
+    const catValues = {{ top_categories | map(attribute=1) | list | tojson }};
+    const typeLabels = {{ job_types.keys() | list | tojson }};
+    const typeValues = {{ job_types.values() | list | tojson }};
+
+    const chartDefaults = {
+      plugins: { legend: { labels: { color: '#94a3b8', font: { size: 12 } } } },
+      scales: {
+        x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
+        y: { ticks: { color: '#64748b' }, grid: { color: '#334155' } },
+      }
+    };
+
+    new Chart(document.getElementById('categoryChart'), {
+      type: 'bar',
+      data: {
+        labels: catLabels,
+        datasets: [{ label: 'Jumlah Job', data: catValues,
+          backgroundColor: '#0ea5e940', borderColor: '#0ea5e9', borderWidth: 1, borderRadius: 4 }]
+      },
+      options: { ...chartDefaults, plugins: { ...chartDefaults.plugins, legend: { display: false } } }
+    });
+
+    new Chart(document.getElementById('typeChart'), {
+      type: 'doughnut',
+      data: {
+        labels: typeLabels,
+        datasets: [{ data: typeValues,
+          backgroundColor: ['#0ea5e9','#22c55e','#f59e0b','#a855f7','#64748b','#ef4444'],
+          borderWidth: 0 }]
+      },
+      options: { plugins: { legend: { labels: { color: '#94a3b8', font: { size: 12 } } } } }
+    });
+
+    // Search & filter
+    function filterTable() {
+      const q = document.getElementById('searchInput').value.toLowerCase();
+      const type = document.getElementById('typeFilter').value.toLowerCase();
+      const rows = document.querySelectorAll('#jobTable tr');
+      let visible = 0;
+      rows.forEach(row => {
+        const title = row.dataset.title || '';
+        const cat = row.dataset.category || '';
+        const jt = row.dataset.type || '';
+        const matchQ = !q || title.includes(q) || cat.includes(q) || jt.includes(q);
+        const matchType = !type || jt.includes(type);
+        const show = matchQ && matchType;
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+      });
+      document.getElementById('visibleCount').textContent = visible;
+    }
+
+    // Scrape trigger
+    async function triggerScrape() {
+      const btn = document.getElementById('scrapeBtn');
+      const icon = document.getElementById('scrapeIcon');
+      const text = document.getElementById('scrapeText');
+      btn.disabled = true;
+      icon.classList.add('animate-spin');
+      text.textContent = 'Scraping...';
+      showToast('Scraping dimulai, harap tunggu...', 'info');
+      try {
+        const res = await fetch('/api/scrape', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`✅ Berhasil! ${data.total} job ditemukan. Refresh halaman.`, 'success');
+        } else {
+          showToast(`❌ Gagal: ${data.message}`, 'error');
+        }
+      } catch (e) {
+        showToast('❌ Koneksi error.', 'error');
+      } finally {
+        btn.disabled = false;
+        icon.classList.remove('animate-spin');
+        text.textContent = 'Scrape Sekarang';
+      }
+    }
+
+    function showToast(msg, type) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'fixed bottom-6 right-6 px-4 py-3 rounded-lg text-sm font-medium shadow-lg';
+      if (type === 'success') t.classList.add('bg-green-800', 'text-green-200');
+      else if (type === 'error') t.classList.add('bg-red-900', 'text-red-200');
+      else t.classList.add('bg-slate-700', 'text-slate-200');
+      t.classList.remove('hidden');
+      setTimeout(() => t.classList.add('hidden'), 4000);
+    }
+  </script>
+</body>
+</html>
